@@ -1,8 +1,8 @@
-#ifndef USART_H_
-#define USART_H_
+
 
 #include "stm32f10x.h"
 #include "stm32f10x_gpio.h"
+#include "stm32f10x_usart.h"
 
 
 class Usart {
@@ -11,5 +11,11 @@ public:
 
 	void init();
 
-	void send(unsigned char ch);
-};
+	void send(USART_TypeDef*,uint16_t);
+
+	void send(USART_TypeDef*,const char*);
+
+private:
+	void NVIC_Configuration(void);
+} ;
+

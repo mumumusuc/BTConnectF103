@@ -34,6 +34,8 @@
 #include "BlinkLed.h"
 #include "Usart.h"
 #include <string>
+#include <cstring>
+#include "stm32f10x_adc.h"
 
 namespace {
 // ----- Timing definitions -------------------------------------------------
@@ -68,22 +70,58 @@ int main(int argc, char* argv[]) {
 	uint32_t seconds = 0;
 
 	usart.init();
-//	GPIO_InitTypeDef GPIO_InitStructure;
-//	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_15;
-//	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-//	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-//	GPIO_Init(GPIOA, &GPIO_InitStructure);
-//	GPIO_SetBits(GPIOA, GPIO_Pin_15);
+	GPIO_InitTypeDef m_GPIO_InitTypeDef;
+	ADC_InitTypeDef ADC_InitStructure;
+
+	RCC_ADCCLKConfig(RCC_PCLK2_Div6);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE); // 打开ADC1的APB2时钟
+	m_GPIO_InitTypeDef.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
+	m_GPIO_InitTypeDef.GPIO_Mode = GPIO_Mode_AIN;
+	GPIO_Init(GPIOA, &m_GPIO_InitTypeDef);               //GPIO初始化
+
+	ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;  //ADC1和ADC2工作在独立模式
+	ADC_InitStructure.ADC_ScanConvMode = DISABLE;       //ADC工作在单通道模式
+	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;  //ADC工作在单次模式
+	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None; //转换由软件而不是外部触发启动
+	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;  //ADC数据右对齐
+	ADC_InitStructure.ADC_NbrOfChannel = 2;
+	ADC_Init(ADC1, &ADC_InitStructure);
+
+//	ADC_ITConfig(ADC1, ADC_IT_EOC, ENABLE);               //开启转换结束中断
+	ADC_Cmd(ADC1, ENABLE);            //使能ADC1转换器
+	ADC_ResetCalibration(ADC1);
+	while (ADC_GetResetCalibrationStatus(ADC1))	;
+	ADC_StartCalibration(ADC1);
+	while (ADC_GetCalibrationStatus(ADC1));
+	usart.send(USART1, std::string("ADC1 init OK\n\r").data());
+	char buff[12];
+	uint16_t ADCConvertedValue;
 	// Infinite loop
 	while (1) {
 		blinkLed.turnOn();
-		timer.sleep(seconds == 0 ? Timer::FREQUENCY_HZ : BLINK_ON_TICKS);
+//		timer.sleep(seconds == 0 ? Timer::FREQUENCY_HZ : BLINK_ON_TICKS);
+
+		ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 1,ADC_SampleTime_71Cycles5);
+		ADC_SoftwareStartConvCmd(ADC1, ENABLE);      //使能ADC1的软件转换启动功能
+		while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET)	; //等待转换结束
+		ADCConvertedValue = ADC_GetConversionValue(ADC1);
+		memset(buff,sizeof(char)*12,0);
+		sprintf(buff, "%04d", ADCConvertedValue);
+		buff[4] = ',';
 
 		blinkLed.turnOff();
-		timer.sleep(BLINK_OFF_TICKS);
+//		timer.sleep(BLINK_OFF_TICKS);
+//		++seconds;
 
-		++seconds;
-		//	usart.send(str.c_str());
+		ADC_RegularChannelConfig(ADC1, ADC_Channel_7, 1,ADC_SampleTime_71Cycles5);
+		ADC_SoftwareStartConvCmd(ADC1, ENABLE);      //使能ADC1的软件转换启动功能
+		while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET); //等待转换结束
+		ADCConvertedValue = ADC_GetConversionValue(ADC1);
+		sprintf(buff+5, "%04d", ADCConvertedValue);
+		buff[9] = '\r';
+		buff[10] = '\n';
+		buff[11] = '\0';
+		usart.send(USART2, buff);
 	}
 	// Infinite loop, never return.
 }

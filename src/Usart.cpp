@@ -56,7 +56,7 @@ void Usart::init() {
 
 void Usart::send(USART_TypeDef* USARTx, uint16_t ch) {
 	USART_SendData(USARTx, ch);
-	while (!(USARTx->SR & USART_FLAG_TXE))
+	while (USART_GetFlagStatus(USARTx, USART_FLAG_TXE) == RESET)
 		;
 }
 
@@ -87,5 +87,8 @@ void Usart::NVIC_Configuration(void) {
 	NVIC_Init(&NVIC_InitStructure);
 	NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
 	NVIC_Init(&NVIC_InitStructure);
+//	NVIC_InitStructure.NVIC_IRQChannel = ADC1_2_IRQn;
+//	NVIC_Init(&NVIC_InitStructure);
+
 }
 
